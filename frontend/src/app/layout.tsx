@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import MobileAppLayout from "@/components/layout/MobileAppLayout";
 
 export const metadata: Metadata = {
   title: "SalamatPo",
-  description: "Medicine access route recommendation service for the Philippines",
+  description: "Medicine access route recommendation service",
 };
 
 export default function RootLayout({
@@ -12,9 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body>
-        {children}
+        <MobileAppLayout>{children}</MobileAppLayout>
       </body>
     </html>
   );
