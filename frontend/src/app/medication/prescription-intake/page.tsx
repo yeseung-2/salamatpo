@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, useRef, useState } from "react";
 import {
   confirmPrescription,
@@ -42,6 +43,7 @@ function labelClassName() {
 }
 
 export default function PrescriptionIntakePage() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function PrescriptionIntakePage() {
 
   const handleScanPrescription = async () => {
     if (!selectedFile) {
-      alert("처방전 이미지를 먼저 업로드해주세요.");
+      alert("Please upload a prescription image first.");
       return;
     }
 
@@ -86,7 +88,7 @@ export default function PrescriptionIntakePage() {
       setPrescriptionStatus(data.status);
     } catch (error) {
       console.error(error);
-      alert("처방전 인식 중 오류가 발생했습니다.");
+      alert("An error occurred while scanning the prescription.");
     } finally {
       setIsScanning(false);
     }
@@ -134,7 +136,7 @@ export default function PrescriptionIntakePage() {
 
   const handleConfirmPrescription = async () => {
     if (!prescriptionId) {
-      alert("먼저 처방전을 인식해주세요.");
+      alert("Please scan the prescription first.");
       return;
     }
 
@@ -155,16 +157,12 @@ export default function PrescriptionIntakePage() {
         })),
       };
 
-      const confirmed = await confirmPrescription(prescriptionId, payload);
+      await confirmPrescription(prescriptionId, payload);
 
-      setForm(toForm(confirmed));
-      setPrescriptionStatus(confirmed.status);
-
-      alert("처방전 정보가 저장되었습니다.");
-      console.log("confirmed prescription:", confirmed);
+      router.push(`/medication/additional-info?prescriptionId=${prescriptionId}`);
     } catch (error) {
       console.error(error);
-      alert("처방전 저장 중 오류가 발생했습니다.");
+      alert("Failed to save prescription information.");
     } finally {
       setIsConfirming(false);
     }
@@ -182,22 +180,22 @@ export default function PrescriptionIntakePage() {
           href="/medication"
           className="text-sm font-medium text-emerald-600"
         >
-          ← 정보입력으로 돌아가기
+          ← Back to Information Input
         </Link>
-        <p className="mt-3 text-sm text-gray-500">1단계</p>
+        <p className="mt-3 text-sm text-gray-500">Step 1</p>
         <h1 className="mt-1 text-2xl font-bold text-gray-900">
-          처방전 인식 / 정보입력
+          Prescription Scan / Data Entry
         </h1>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          처방전에서 환자 정보, 처방 정보, 약 정보를 자동으로 추출합니다.
-          필요하면 직접 수정하세요.
+          Automatically extract patient details, prescription details, and medicine
+          information from the prescription. Edit anything that needs correction.
         </p>
       </section>
 
       <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-gray-900">처방전 이미지</h2>
+        <h2 className="text-base font-semibold text-gray-900">Prescription Image</h2>
         <p className="mt-1 text-sm text-gray-500">
-          사진 또는 스캔 파일을 선택해 주세요.
+          Select a photo or scanned file.
         </p>
 
         <input
@@ -213,7 +211,7 @@ export default function PrescriptionIntakePage() {
           onClick={() => fileInputRef.current?.click()}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700"
         >
-          처방전 이미지 업로드
+          Upload Prescription Image
         </button>
 
         {imagePreviewUrl && (
@@ -221,7 +219,7 @@ export default function PrescriptionIntakePage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imagePreviewUrl}
-              alt="업로드한 처방전 미리보기"
+              alt="Uploaded prescription preview"
               className="max-h-64 w-full object-contain"
             />
             {selectedFile && (
@@ -238,7 +236,7 @@ export default function PrescriptionIntakePage() {
           disabled={!selectedFile || isScanning}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {isScanning ? "OCR 인식 중..." : "OCR 인식하기"}
+          {isScanning ? "Scanning..." : "Run OCR"}
         </button>
       </section>
 
@@ -247,7 +245,7 @@ export default function PrescriptionIntakePage() {
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-gray-900">
-                환자 정보
+                Patient Information
               </h2>
               {prescriptionStatus && (
                 <span
@@ -257,18 +255,18 @@ export default function PrescriptionIntakePage() {
                       : "bg-gray-100 text-gray-600"
                   }`}
                 >
-                  {isAlreadyConfirmed ? "저장 완료" : "초안"}
+                  {isAlreadyConfirmed ? "Saved" : "Draft"}
                 </span>
               )}
             </div>
             <p className="mt-1 text-sm text-gray-500">
-              처방전에서 추출한 환자 기본정보입니다.
+              Basic patient details extracted from the prescription.
             </p>
 
             <div className="mt-4 space-y-4">
               <div>
                 <label htmlFor="patientName" className={labelClassName()}>
-                  이름
+                  Name
                 </label>
                 <input
                   id="patientName"
@@ -285,7 +283,7 @@ export default function PrescriptionIntakePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="patientAge" className={labelClassName()}>
-                    나이
+                    Age
                   </label>
                   <input
                     id="patientAge"
@@ -302,7 +300,7 @@ export default function PrescriptionIntakePage() {
 
                 <div>
                   <label htmlFor="patientBirthDate" className={labelClassName()}>
-                    생년월일
+                    Date of Birth
                   </label>
                   <input
                     id="patientBirthDate"
@@ -319,7 +317,7 @@ export default function PrescriptionIntakePage() {
 
               <div>
                 <label htmlFor="patientAddress" className={labelClassName()}>
-                  주소
+                  Address
                 </label>
                 <textarea
                   id="patientAddress"
@@ -336,15 +334,15 @@ export default function PrescriptionIntakePage() {
           </section>
 
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900">처방 정보</h2>
+            <h2 className="text-base font-semibold text-gray-900">Prescription Details</h2>
             <p className="mt-1 text-sm text-gray-500">
-              병원명, 의사명, 처방일을 확인하고 수정하세요.
+              Review and edit the hospital name, doctor name, and prescription date.
             </p>
 
             <div className="mt-4 space-y-4">
               <div>
                 <label htmlFor="hospitalName" className={labelClassName()}>
-                  병원명
+                  Hospital Name
                 </label>
                 <input
                   id="hospitalName"
@@ -360,7 +358,7 @@ export default function PrescriptionIntakePage() {
 
               <div>
                 <label htmlFor="doctorName" className={labelClassName()}>
-                  의사명
+                  Doctor Name
                 </label>
                 <input
                   id="doctorName"
@@ -376,7 +374,7 @@ export default function PrescriptionIntakePage() {
 
               <div>
                 <label htmlFor="prescriptionDate" className={labelClassName()}>
-                  처방일
+                  Prescription Date
                 </label>
                 <input
                   id="prescriptionDate"
@@ -396,14 +394,14 @@ export default function PrescriptionIntakePage() {
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
-                  약품 정보
+                  Medicine Information
                 </h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  약품별로 내용을 확인한 뒤 확인 버튼을 눌러 주세요.
+                  Review each medicine and tap confirm when ready.
                 </p>
               </div>
               <p className="text-sm text-gray-500">
-                {confirmedCount}/{form.medicines.length} 확인
+                {confirmedCount}/{form.medicines.length} confirmed
               </p>
             </div>
 
@@ -418,11 +416,11 @@ export default function PrescriptionIntakePage() {
               >
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-gray-900">
-                    약품 {index + 1}
+                    Medicine {index + 1}
                   </h3>
                   {medicine.is_confirmed && (
                     <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                      확인됨
+                      Confirmed
                     </span>
                   )}
                 </div>
@@ -433,7 +431,7 @@ export default function PrescriptionIntakePage() {
                       htmlFor={`medicine-name-${medicine.id}`}
                       className={labelClassName()}
                     >
-                      약품명
+                      Medicine Name
                     </label>
                     <input
                       id={`medicine-name-${medicine.id}`}
@@ -457,7 +455,7 @@ export default function PrescriptionIntakePage() {
                         htmlFor={`medicine-dosage-${medicine.id}`}
                         className={labelClassName()}
                       >
-                        함량
+                        Dosage
                       </label>
                       <input
                         id={`medicine-dosage-${medicine.id}`}
@@ -476,7 +474,7 @@ export default function PrescriptionIntakePage() {
                         htmlFor={`medicine-form-${medicine.id}`}
                         className={labelClassName()}
                       >
-                        제형
+                        Form
                       </label>
                       <input
                         id={`medicine-form-${medicine.id}`}
@@ -496,7 +494,7 @@ export default function PrescriptionIntakePage() {
                       htmlFor={`medicine-frequency-${medicine.id}`}
                       className={labelClassName()}
                     >
-                      용법
+                      Directions
                     </label>
                     <textarea
                       id={`medicine-frequency-${medicine.id}`}
@@ -528,7 +526,7 @@ export default function PrescriptionIntakePage() {
                     }
                     className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
                   >
-                    {medicine.is_confirmed ? "확인 완료" : "이 약품 확인"}
+                    {medicine.is_confirmed ? "Confirmed" : "Confirm This Medicine"}
                   </button>
                 )}
               </article>
@@ -542,7 +540,7 @@ export default function PrescriptionIntakePage() {
               disabled={isConfirming || form.medicines.length === 0}
               className="flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300"
             >
-              {isConfirming ? "저장 중..." : "확인 완료 및 저장"}
+              {isConfirming ? "Saving..." : "Confirm and Save"}
             </button>
           )}
         </>

@@ -5,27 +5,27 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   {
-    label: "홈",
+    label: "Home",
     href: "/",
     icon: "🏠",
   },
   {
-    label: "검색",
+    label: "Search",
     href: "/search",
     icon: "🔍",
   },
   {
-    label: "정보입력",
+    label: "Intake",
     href: "/medication",
     icon: "💊",
   },
   {
-    label: "커뮤니티",
+    label: "Community",
     href: "/community",
     icon: "💬",
   },
   {
-    label: "마이페이지",
+    label: "Profile",
     href: "/mypage",
     icon: "👤",
   },
