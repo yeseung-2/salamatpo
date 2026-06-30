@@ -3,6 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.health import router as health_router
+from app.api.v1.prescription import router as prescription_router
+
+from app.core.database import Base, engine
+from app.models import prescription
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="SalamatPo API",
@@ -28,7 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router, prefix="/api/v1")
-
+app.include_router(prescription_router, prefix="/api/v1")
 
 @app.get("/")
 def root():
@@ -39,3 +45,15 @@ def root():
         },
         "message": "API server is running"
     }
+
+@app.get("/api/db-health")
+def db_health():
+    from sqlalchemy import text
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    finally:
+        db.close()
