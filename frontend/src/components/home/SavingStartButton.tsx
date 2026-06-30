@@ -6,7 +6,7 @@ export default function SavingStartButton() {
       href="/search"
       className="flex w-full items-center justify-center rounded-xl bg-foreground px-4 py-4 text-base font-semibold text-background"
     >
-      절약 시작하기
+      Start saving
     </Link>
   );
 }
