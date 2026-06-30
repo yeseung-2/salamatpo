@@ -15,7 +15,7 @@ const navItems = [
     icon: "🔍",
   },
   {
-    label: "복약관리",
+    label: "정보입력",
     href: "/medication",
     icon: "💊",
   },
@@ -38,7 +38,10 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-[430px] -translate-x-1/2 border-t border-gray-100 bg-white px-2 pb-3 pt-2">
       <div className="grid grid-cols-5">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link
