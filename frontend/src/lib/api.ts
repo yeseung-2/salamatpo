@@ -59,6 +59,29 @@ export type PrescriptionForm = {
   medicines: PrescriptionMedicine[];
 };
 
+export type AdditionalInfo = {
+  id: number;
+  prescription_id: number;
+  barangay?: string | null;
+  has_philhealth: boolean;
+  is_senior_citizen: boolean;
+  is_pwd: boolean;
+  monthly_income_range?: string | null;
+  chronic_conditions: string[];
+  other_condition?: string | null;
+};
+
+export type AdditionalInfoCreatePayload = {
+  prescription_id: number;
+  barangay: string;
+  has_philhealth: boolean;
+  is_senior_citizen: boolean;
+  is_pwd: boolean;
+  monthly_income_range: string;
+  chronic_conditions: string[];
+  other_condition?: string | null;
+};
+
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
 });
@@ -90,5 +113,21 @@ export async function confirmPrescription(
     payload,
   );
 
+  return response.data;
+}
+
+export async function createAdditionalInfo(
+  payload: AdditionalInfoCreatePayload,
+): Promise<AdditionalInfo> {
+  const response = await api.post<AdditionalInfo>("/additional-infos", payload);
+  return response.data;
+}
+
+export async function getAdditionalInfoByPrescription(
+  prescriptionId: number,
+): Promise<AdditionalInfo> {
+  const response = await api.get<AdditionalInfo>(
+    `/additional-infos/prescription/${prescriptionId}`,
+  );
   return response.data;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, useRef, useState } from "react";
 import {
   confirmPrescription,
@@ -42,6 +43,7 @@ function labelClassName() {
 }
 
 export default function PrescriptionIntakePage() {
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
@@ -155,16 +157,12 @@ export default function PrescriptionIntakePage() {
         })),
       };
 
-      const confirmed = await confirmPrescription(prescriptionId, payload);
+      await confirmPrescription(prescriptionId, payload);
 
-      setForm(toForm(confirmed));
-      setPrescriptionStatus(confirmed.status);
-
-      alert("Prescription information has been saved.");
-      console.log("confirmed prescription:", confirmed);
+      router.push(`/medication/additional-info?prescriptionId=${prescriptionId}`);
     } catch (error) {
       console.error(error);
-      alert("An error occurred while saving the prescription.");
+      alert("Failed to save prescription information.");
     } finally {
       setIsConfirming(false);
     }
