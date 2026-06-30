@@ -2,31 +2,34 @@
 
 import Link from "next/link";
 import { ChangeEvent, useRef, useState } from "react";
-import { runPrescriptionOcr } from "@/lib/prescription/ocr";
-import type {
-  PrescriptionDraft,
-  PrescriptionMedicineDraft,
-} from "@/lib/prescription/types";
+import {
+  confirmPrescription,
+  scanPrescription,
+  type Prescription,
+  type PrescriptionForm,
+} from "@/lib/api";
 
-function createMedicineId() {
-  return crypto.randomUUID();
-}
+const emptyForm: PrescriptionForm = {
+  patient_name: "",
+  patient_age: "",
+  patient_birth_date: "",
+  patient_address: "",
+  hospital_name: "",
+  doctor_name: "",
+  prescription_date: "",
+  medicines: [],
+};
 
-function toDraftFromOcr(
-  result: Awaited<ReturnType<typeof runPrescriptionOcr>>,
-): PrescriptionDraft {
+function toForm(data: Prescription): PrescriptionForm {
   return {
-    hospitalName: result.hospitalName,
-    doctorName: result.doctorName,
-    prescriptionDate: result.prescriptionDate,
-    medicines: result.medicines.map((medicine) => ({
-      id: createMedicineId(),
-      name: medicine.name,
-      strength: medicine.strength,
-      dosageForm: medicine.dosageForm,
-      directions: medicine.directions,
-      confirmed: false,
-    })),
+    patient_name: data.patient_name ?? "",
+    patient_age: data.patient_age != null ? String(data.patient_age) : "",
+    patient_birth_date: data.patient_birth_date ?? "",
+    patient_address: data.patient_address ?? "",
+    hospital_name: data.hospital_name ?? "",
+    doctor_name: data.doctor_name ?? "",
+    prescription_date: data.prescription_date ?? "",
+    medicines: data.medicines ?? [],
   };
 }
 
@@ -40,11 +43,17 @@ function labelClassName() {
 
 export default function PrescriptionIntakePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [draft, setDraft] = useState<PrescriptionDraft | null>(null);
-  const [isRecognizing, setIsRecognizing] = useState(false);
-  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [prescriptionId, setPrescriptionId] = useState<number | null>(null);
+  const [form, setForm] = useState<PrescriptionForm>(emptyForm);
+  const [prescriptionStatus, setPrescriptionStatus] = useState<string | null>(
+    null,
+  );
+  const [isScanning, setIsScanning] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  const hasScanResult = prescriptionId !== null;
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -54,70 +63,117 @@ export default function PrescriptionIntakePage() {
       URL.revokeObjectURL(imagePreviewUrl);
     }
 
-    setImageFile(file);
+    setSelectedFile(file);
     setImagePreviewUrl(URL.createObjectURL(file));
-    setDraft(null);
-    setOcrError(null);
+    setPrescriptionId(null);
+    setForm(emptyForm);
+    setPrescriptionStatus(null);
   };
 
-  const handleRunOcr = async () => {
-    if (!imageFile) return;
-
-    setIsRecognizing(true);
-    setOcrError(null);
+  const handleScanPrescription = async () => {
+    if (!selectedFile) {
+      alert("처방전 이미지를 먼저 업로드해주세요.");
+      return;
+    }
 
     try {
-      const result = await runPrescriptionOcr(imageFile);
-      setDraft(toDraftFromOcr(result));
-    } catch {
-      setOcrError("OCR 인식에 실패했습니다. 다시 시도해 주세요.");
+      setIsScanning(true);
+
+      const data = await scanPrescription(selectedFile);
+
+      setPrescriptionId(data.id);
+      setForm(toForm(data));
+      setPrescriptionStatus(data.status);
+    } catch (error) {
+      console.error(error);
+      alert("처방전 인식 중 오류가 발생했습니다.");
     } finally {
-      setIsRecognizing(false);
+      setIsScanning(false);
     }
   };
 
-  const updateDraftField = <K extends keyof Omit<PrescriptionDraft, "medicines">>(
-    field: K,
-    value: PrescriptionDraft[K],
+  const updateFormField = (
+    field:
+      | "patient_name"
+      | "patient_age"
+      | "patient_birth_date"
+      | "patient_address"
+      | "hospital_name"
+      | "doctor_name"
+      | "prescription_date",
+    value: string,
   ) => {
-    setDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const updateMedicine = (
-    medicineId: string,
-    field: keyof Omit<PrescriptionMedicineDraft, "id" | "confirmed">,
+    medicineId: number,
+    field: "medicine_name" | "dosage" | "form" | "frequency",
     value: string,
   ) => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-
-      return {
-        ...prev,
-        medicines: prev.medicines.map((medicine) =>
-          medicine.id === medicineId
-            ? { ...medicine, [field]: value, confirmed: false }
-            : medicine,
-        ),
-      };
-    });
+    setForm((prev) => ({
+      ...prev,
+      medicines: prev.medicines.map((medicine) =>
+        medicine.id === medicineId
+          ? { ...medicine, [field]: value, is_confirmed: false }
+          : medicine,
+      ),
+    }));
   };
 
-  const confirmMedicine = (medicineId: string) => {
-    setDraft((prev) => {
-      if (!prev) return prev;
-
-      return {
-        ...prev,
-        medicines: prev.medicines.map((medicine) =>
-          medicine.id === medicineId
-            ? { ...medicine, confirmed: true }
-            : medicine,
-        ),
-      };
-    });
+  const confirmMedicine = (medicineId: number) => {
+    setForm((prev) => ({
+      ...prev,
+      medicines: prev.medicines.map((medicine) =>
+        medicine.id === medicineId
+          ? { ...medicine, is_confirmed: true }
+          : medicine,
+      ),
+    }));
   };
 
-  const confirmedCount = draft?.medicines.filter((m) => m.confirmed).length ?? 0;
+  const handleConfirmPrescription = async () => {
+    if (!prescriptionId) {
+      alert("먼저 처방전을 인식해주세요.");
+      return;
+    }
+
+    try {
+      setIsConfirming(true);
+
+      const payload = {
+        patient_name: form.patient_name,
+        patient_age: form.patient_age ? Number(form.patient_age) : null,
+        patient_birth_date: form.patient_birth_date,
+        patient_address: form.patient_address,
+        hospital_name: form.hospital_name,
+        doctor_name: form.doctor_name,
+        prescription_date: form.prescription_date,
+        medicines: form.medicines.map((medicine) => ({
+          ...medicine,
+          is_confirmed: true,
+        })),
+      };
+
+      const confirmed = await confirmPrescription(prescriptionId, payload);
+
+      setForm(toForm(confirmed));
+      setPrescriptionStatus(confirmed.status);
+
+      alert("처방전 정보가 저장되었습니다.");
+      console.log("confirmed prescription:", confirmed);
+    } catch (error) {
+      console.error(error);
+      alert("처방전 저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const confirmedCount =
+    form.medicines.filter((medicine) => medicine.is_confirmed).length ?? 0;
+
+  const isAlreadyConfirmed = prescriptionStatus === "confirmed";
 
   return (
     <div className="space-y-6 pb-8">
@@ -126,15 +182,15 @@ export default function PrescriptionIntakePage() {
           href="/medication"
           className="text-sm font-medium text-emerald-600"
         >
-          ← 복약관리로 돌아가기
+          ← 정보입력으로 돌아가기
         </Link>
         <p className="mt-3 text-sm text-gray-500">1단계</p>
         <h1 className="mt-1 text-2xl font-bold text-gray-900">
           처방전 인식 / 정보입력
         </h1>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          처방전 이미지를 업로드한 뒤 OCR로 정보를 불러오고, 필요하면 직접
-          수정하세요.
+          처방전에서 환자 정보, 처방 정보, 약 정보를 자동으로 추출합니다.
+          필요하면 직접 수정하세요.
         </p>
       </section>
 
@@ -168,9 +224,9 @@ export default function PrescriptionIntakePage() {
               alt="업로드한 처방전 미리보기"
               className="max-h-64 w-full object-contain"
             />
-            {imageFile && (
+            {selectedFile && (
               <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">
-                {imageFile.name}
+                {selectedFile.name}
               </p>
             )}
           </div>
@@ -178,26 +234,111 @@ export default function PrescriptionIntakePage() {
 
         <button
           type="button"
-          onClick={handleRunOcr}
-          disabled={!imageFile || isRecognizing}
+          onClick={handleScanPrescription}
+          disabled={!selectedFile || isScanning}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {isRecognizing ? "OCR 인식 중..." : "OCR 인식하기"}
+          {isScanning ? "OCR 인식 중..." : "OCR 인식하기"}
         </button>
-
-        {ocrError && (
-          <p className="mt-3 text-sm text-red-500">{ocrError}</p>
-        )}
       </section>
 
-      {draft && (
+      {hasScanResult && (
         <>
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900">
-              처방 기본 정보
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900">
+                환자 정보
+              </h2>
+              {prescriptionStatus && (
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                    isAlreadyConfirmed
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {isAlreadyConfirmed ? "저장 완료" : "초안"}
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-sm text-gray-500">
-              OCR 결과가 자동으로 입력됩니다. 필요하면 수정하세요.
+              처방전에서 추출한 환자 기본정보입니다.
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label htmlFor="patientName" className={labelClassName()}>
+                  이름
+                </label>
+                <input
+                  id="patientName"
+                  type="text"
+                  value={form.patient_name}
+                  onChange={(e) =>
+                    updateFormField("patient_name", e.target.value)
+                  }
+                  disabled={isAlreadyConfirmed}
+                  className={fieldClassName()}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="patientAge" className={labelClassName()}>
+                    나이
+                  </label>
+                  <input
+                    id="patientAge"
+                    type="number"
+                    min={0}
+                    value={form.patient_age}
+                    onChange={(e) =>
+                      updateFormField("patient_age", e.target.value)
+                    }
+                    disabled={isAlreadyConfirmed}
+                    className={fieldClassName()}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="patientBirthDate" className={labelClassName()}>
+                    생년월일
+                  </label>
+                  <input
+                    id="patientBirthDate"
+                    type="date"
+                    value={form.patient_birth_date}
+                    onChange={(e) =>
+                      updateFormField("patient_birth_date", e.target.value)
+                    }
+                    disabled={isAlreadyConfirmed}
+                    className={fieldClassName()}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="patientAddress" className={labelClassName()}>
+                  주소
+                </label>
+                <textarea
+                  id="patientAddress"
+                  value={form.patient_address}
+                  onChange={(e) =>
+                    updateFormField("patient_address", e.target.value)
+                  }
+                  rows={3}
+                  disabled={isAlreadyConfirmed}
+                  className={`${fieldClassName()} resize-none`}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-gray-900">처방 정보</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              병원명, 의사명, 처방일을 확인하고 수정하세요.
             </p>
 
             <div className="mt-4 space-y-4">
@@ -208,10 +349,11 @@ export default function PrescriptionIntakePage() {
                 <input
                   id="hospitalName"
                   type="text"
-                  value={draft.hospitalName}
+                  value={form.hospital_name}
                   onChange={(e) =>
-                    updateDraftField("hospitalName", e.target.value)
+                    updateFormField("hospital_name", e.target.value)
                   }
+                  disabled={isAlreadyConfirmed}
                   className={fieldClassName()}
                 />
               </div>
@@ -223,10 +365,11 @@ export default function PrescriptionIntakePage() {
                 <input
                   id="doctorName"
                   type="text"
-                  value={draft.doctorName}
+                  value={form.doctor_name}
                   onChange={(e) =>
-                    updateDraftField("doctorName", e.target.value)
+                    updateFormField("doctor_name", e.target.value)
                   }
+                  disabled={isAlreadyConfirmed}
                   className={fieldClassName()}
                 />
               </div>
@@ -238,10 +381,11 @@ export default function PrescriptionIntakePage() {
                 <input
                   id="prescriptionDate"
                   type="date"
-                  value={draft.prescriptionDate}
+                  value={form.prescription_date}
                   onChange={(e) =>
-                    updateDraftField("prescriptionDate", e.target.value)
+                    updateFormField("prescription_date", e.target.value)
                   }
+                  disabled={isAlreadyConfirmed}
                   className={fieldClassName()}
                 />
               </div>
@@ -259,15 +403,15 @@ export default function PrescriptionIntakePage() {
                 </p>
               </div>
               <p className="text-sm text-gray-500">
-                {confirmedCount}/{draft.medicines.length} 확인
+                {confirmedCount}/{form.medicines.length} 확인
               </p>
             </div>
 
-            {draft.medicines.map((medicine, index) => (
+            {form.medicines.map((medicine, index) => (
               <article
                 key={medicine.id}
                 className={`rounded-2xl border p-5 shadow-sm ${
-                  medicine.confirmed
+                  medicine.is_confirmed
                     ? "border-emerald-200 bg-emerald-50/40"
                     : "border-gray-100 bg-white"
                 }`}
@@ -276,7 +420,7 @@ export default function PrescriptionIntakePage() {
                   <h3 className="text-sm font-semibold text-gray-900">
                     약품 {index + 1}
                   </h3>
-                  {medicine.confirmed && (
+                  {medicine.is_confirmed && (
                     <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
                       확인됨
                     </span>
@@ -294,10 +438,15 @@ export default function PrescriptionIntakePage() {
                     <input
                       id={`medicine-name-${medicine.id}`}
                       type="text"
-                      value={medicine.name}
+                      value={medicine.medicine_name ?? ""}
                       onChange={(e) =>
-                        updateMedicine(medicine.id, "name", e.target.value)
+                        updateMedicine(
+                          medicine.id,
+                          "medicine_name",
+                          e.target.value,
+                        )
                       }
+                      disabled={isAlreadyConfirmed}
                       className={fieldClassName()}
                     />
                   </div>
@@ -305,22 +454,19 @@ export default function PrescriptionIntakePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label
-                        htmlFor={`medicine-strength-${medicine.id}`}
+                        htmlFor={`medicine-dosage-${medicine.id}`}
                         className={labelClassName()}
                       >
                         함량
                       </label>
                       <input
-                        id={`medicine-strength-${medicine.id}`}
+                        id={`medicine-dosage-${medicine.id}`}
                         type="text"
-                        value={medicine.strength}
+                        value={medicine.dosage ?? ""}
                         onChange={(e) =>
-                          updateMedicine(
-                            medicine.id,
-                            "strength",
-                            e.target.value,
-                          )
+                          updateMedicine(medicine.id, "dosage", e.target.value)
                         }
+                        disabled={isAlreadyConfirmed}
                         className={fieldClassName()}
                       />
                     </div>
@@ -335,14 +481,11 @@ export default function PrescriptionIntakePage() {
                       <input
                         id={`medicine-form-${medicine.id}`}
                         type="text"
-                        value={medicine.dosageForm}
+                        value={medicine.form ?? ""}
                         onChange={(e) =>
-                          updateMedicine(
-                            medicine.id,
-                            "dosageForm",
-                            e.target.value,
-                          )
+                          updateMedicine(medicine.id, "form", e.target.value)
                         }
+                        disabled={isAlreadyConfirmed}
                         className={fieldClassName()}
                       />
                     </div>
@@ -350,44 +493,58 @@ export default function PrescriptionIntakePage() {
 
                   <div>
                     <label
-                      htmlFor={`medicine-directions-${medicine.id}`}
+                      htmlFor={`medicine-frequency-${medicine.id}`}
                       className={labelClassName()}
                     >
                       용법
                     </label>
                     <textarea
-                      id={`medicine-directions-${medicine.id}`}
-                      value={medicine.directions}
+                      id={`medicine-frequency-${medicine.id}`}
+                      value={medicine.frequency ?? ""}
                       onChange={(e) =>
                         updateMedicine(
                           medicine.id,
-                          "directions",
+                          "frequency",
                           e.target.value,
                         )
                       }
                       rows={3}
+                      disabled={isAlreadyConfirmed}
                       className={`${fieldClassName()} resize-none`}
                     />
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => confirmMedicine(medicine.id)}
-                  disabled={
-                    medicine.confirmed ||
-                    !medicine.name.trim() ||
-                    !medicine.strength.trim() ||
-                    !medicine.dosageForm.trim() ||
-                    !medicine.directions.trim()
-                  }
-                  className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-                >
-                  {medicine.confirmed ? "확인 완료" : "이 약품 확인"}
-                </button>
+                {!isAlreadyConfirmed && (
+                  <button
+                    type="button"
+                    onClick={() => confirmMedicine(medicine.id)}
+                    disabled={
+                      medicine.is_confirmed ||
+                      !medicine.medicine_name?.trim() ||
+                      !medicine.dosage?.trim() ||
+                      !medicine.form?.trim() ||
+                      !medicine.frequency?.trim()
+                    }
+                    className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+                  >
+                    {medicine.is_confirmed ? "확인 완료" : "이 약품 확인"}
+                  </button>
+                )}
               </article>
             ))}
           </section>
+
+          {!isAlreadyConfirmed && (
+            <button
+              type="button"
+              onClick={handleConfirmPrescription}
+              disabled={isConfirming || form.medicines.length === 0}
+              className="flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300"
+            >
+              {isConfirming ? "저장 중..." : "확인 완료 및 저장"}
+            </button>
+          )}
         </>
       )}
     </div>

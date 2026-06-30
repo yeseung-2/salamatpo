@@ -2,18 +2,16 @@
 
 import { useRouter } from "next/navigation";
 
-export default function MedicationPage() {
+export default function InfoInputPage() {
   const router = useRouter();
 
   return (
     <main className="min-h-screen bg-[#F8FAF7] px-5 py-6">
       <section className="mb-6">
-        <p className="text-sm text-gray-500">Medication</p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">
-          Medicine Support
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900">정보입력</h1>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          처방전 정보, 추가 자격 정보, 약 검색을 각각 따로 관리할 수 있어요.
+          처방전에서 환자·처방·약 정보를 추출하고, 복지 매칭에 필요한 추가
+          정보만 따로 입력할 수 있어요.
         </p>
       </section>
 
@@ -26,7 +24,8 @@ export default function MedicationPage() {
             처방전 인식 / 정보입력
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            처방전을 촬영하거나 직접 입력해서 병원명, 의사명, 처방일, 약 정보를 등록합니다.
+            처방전을 촬영하거나 직접 입력해서 환자 정보, 병원명, 의사명,
+            처방일, 약 정보를 등록합니다.
           </p>
         </button>
 
@@ -38,7 +37,8 @@ export default function MedicationPage() {
             추가정보입력
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            처방전에서 가져온 정보는 자동기입하고, 주소·자격·소득 정보를 추가로 입력합니다.
+            처방전에서 가져온 이름·나이·주소는 자동기입하고, PhilHealth·자격
+            정보·소득 수준 등 부족한 정보만 추가로 입력합니다.
           </p>
         </button>
 
