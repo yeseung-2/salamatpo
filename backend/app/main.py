@@ -27,18 +27,27 @@ frontend_url = os.getenv("FRONTEND_URL")
 
 allow_origins = [
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 if frontend_url:
     allow_origins.append(frontend_url)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_kwargs: dict = {
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+
+if os.getenv("ENV", "development") == "development":
+    # Allow localhost and LAN IPs (e.g. phone testing at 192.168.x.x:3000)
+    cors_kwargs["allow_origin_regex"] = (
+        r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+):3000"
+    )
+else:
+    cors_kwargs["allow_origins"] = allow_origins
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(prescription_router, prefix="/api/v1")

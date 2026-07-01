@@ -82,8 +82,10 @@ export type AdditionalInfoCreatePayload = {
   other_condition?: string | null;
 };
 
+// Use same-origin `/api/v1` in dev (proxied by Next.js) to avoid CORS and
+// `localhost` pointing at the wrong device when testing on a phone/tablet.
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1",
 });
 
 export async function scanPrescription(file: File): Promise<Prescription> {
