@@ -1,3 +1,4 @@
+import logging
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,11 @@ from app.api.v1.additional_info import router as additional_info_router
 
 from app.core.database import Base, engine
 from app.models import prescription
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 Base.metadata.create_all(bind=engine)
 
