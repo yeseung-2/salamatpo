@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 
 export type PrescriptionMedicine = {
   id: number;
@@ -86,7 +86,44 @@ export type AdditionalInfoCreatePayload = {
 // `localhost` pointing at the wrong device when testing on a phone/tablet.
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1",
+  timeout: 30_000,
 });
+
+/** OCR + VLM scan can take longer than normal API calls. */
+const SCAN_TIMEOUT_MS = 120_000;
+
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (isAxiosError(error)) {
+    if (error.code === "ECONNABORTED") {
+      return "The request timed out. Please try again.";
+    }
+    if (error.response?.data?.detail) {
+      const detail = error.response.data.detail;
+      return typeof detail === "string" ? detail : JSON.stringify(detail);
+    }
+    if (error.message === "Network Error") {
+      return "Cannot reach the server. Check that the backend is running and restart the frontend dev server.";
+    }
+    return error.message || fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+function assertPrescription(data: unknown): Prescription {
+  const prescription = data as Prescription;
+
+  if (!prescription || typeof prescription.id !== "number") {
+    console.error("Unexpected prescription response:", data);
+    throw new Error("Invalid prescription response from server.");
+  }
+
+  return prescription;
+}
 
 export async function scanPrescription(file: File): Promise<Prescription> {
   const formData = new FormData();
@@ -96,14 +133,15 @@ export async function scanPrescription(file: File): Promise<Prescription> {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+    timeout: SCAN_TIMEOUT_MS,
   });
 
-  return response.data;
+  return assertPrescription(response.data);
 }
 
 export async function getPrescription(prescriptionId: number): Promise<Prescription> {
   const response = await api.get<Prescription>(`/prescriptions/${prescriptionId}`);
-  return response.data;
+  return assertPrescription(response.data);
 }
 
 export async function confirmPrescription(

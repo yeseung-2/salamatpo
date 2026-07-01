@@ -18,6 +18,7 @@ import {
 } from "@/components/medication/ui";
 import {
   confirmPrescription,
+  getApiErrorMessage,
   scanPrescription,
   type Prescription,
   type PrescriptionForm,
@@ -40,15 +41,31 @@ const emptyForm: PrescriptionForm = {
   medicines: [],
 };
 
+function toDateInputValue(value: string | null | undefined): string {
+  if (!value) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const mdy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) {
+    const [, month, day, year] = mdy;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return value;
+}
+
 function toForm(data: Prescription): PrescriptionForm {
   return {
     patient_name: data.patient_name ?? "",
     patient_age: data.patient_age != null ? String(data.patient_age) : "",
-    patient_birth_date: data.patient_birth_date ?? "",
+    patient_birth_date: toDateInputValue(data.patient_birth_date),
     patient_address: data.patient_address ?? "",
     hospital_name: data.hospital_name ?? "",
     doctor_name: data.doctor_name ?? "",
-    prescription_date: data.prescription_date ?? "",
+    prescription_date: toDateInputValue(data.prescription_date),
     medicines: data.medicines ?? [],
   };
 }
@@ -103,8 +120,8 @@ export default function PrescriptionIntakePage() {
       setPrescriptionStatus(data.status);
       setStage("review");
     } catch (error) {
-      console.error(error);
-      alert("An error occurred while scanning the prescription.");
+      console.error("scanPrescription failed:", error);
+      alert(getApiErrorMessage(error, "An error occurred while scanning the prescription."));
       setStage("upload");
     }
   };
@@ -166,7 +183,13 @@ export default function PrescriptionIntakePage() {
         doctor_name: form.doctor_name,
         prescription_date: form.prescription_date,
         medicines: form.medicines.map((medicine) => ({
-          ...medicine,
+          id: medicine.id,
+          medicine_name: medicine.medicine_name,
+          generic_name: medicine.generic_name,
+          dosage: medicine.dosage,
+          form: medicine.form,
+          frequency: medicine.frequency,
+          duration: medicine.duration,
           is_confirmed: true,
         })),
       };
@@ -175,8 +198,8 @@ export default function PrescriptionIntakePage() {
 
       router.push(`/medication/additional-info?prescriptionId=${prescriptionId}`);
     } catch (error) {
-      console.error(error);
-      alert("Failed to save prescription information.");
+      console.error("confirmPrescription failed:", error);
+      alert(getApiErrorMessage(error, "Failed to save prescription information."));
     } finally {
       setIsConfirming(false);
     }
