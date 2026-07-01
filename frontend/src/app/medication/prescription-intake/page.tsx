@@ -114,14 +114,20 @@ export default function PrescriptionIntakePage() {
       setStage("scanning");
 
       const data = await scanPrescription(selectedFile);
+      console.log("Prescription scan result:", data);
 
       setPrescriptionId(data.id);
       setForm(toForm(data));
       setPrescriptionStatus(data.status);
       setStage("review");
     } catch (error) {
-      console.error("scanPrescription failed:", error);
-      alert(getApiErrorMessage(error, "An error occurred while scanning the prescription."));
+      console.error("Prescription scan failed:", error);
+      alert(
+        getApiErrorMessage(
+          error,
+          "We could not read the server response. Please try again or check your connection.",
+        ),
+      );
       setStage("upload");
     }
   };

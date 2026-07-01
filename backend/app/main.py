@@ -23,35 +23,40 @@ app = FastAPI(
     version="0.1.0",
 )
 
-frontend_url = os.getenv("FRONTEND_URL")
+frontend_url = (os.getenv("FRONTEND_URL") or "").rstrip("/")
 
 allow_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://salamatpo.vercel.app",
 ]
 
-if frontend_url:
+if frontend_url and frontend_url not in allow_origins:
     allow_origins.append(frontend_url)
 
-cors_kwargs: dict = {
-    "allow_credentials": True,
-    "allow_methods": ["*"],
-    "allow_headers": ["*"],
-}
+# Vercel preview deployments + local LAN testing in development
+allow_origin_regexes = [
+    r"https://.*\.vercel\.app",
+]
 
 if os.getenv("ENV", "development") == "development":
-    # Allow localhost and LAN IPs (e.g. phone testing at 192.168.x.x:3000)
-    cors_kwargs["allow_origin_regex"] = (
+    allow_origin_regexes.append(
         r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+):3000"
     )
-else:
-    cors_kwargs["allow_origins"] = allow_origins
 
-app.add_middleware(CORSMiddleware, **cors_kwargs)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_origin_regex="|".join(allow_origin_regexes),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(prescription_router, prefix="/api/v1")
 app.include_router(additional_info_router, prefix="/api/v1")
+
 
 @app.get("/")
 def root():
@@ -62,6 +67,7 @@ def root():
         },
         "message": "API server is running"
     }
+
 
 @app.get("/api/db-health")
 def db_health():
