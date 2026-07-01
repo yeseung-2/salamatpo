@@ -18,6 +18,7 @@ import {
 } from "@/components/medication/ui";
 import {
   createAdditionalInfo,
+  getApiErrorMessage,
   getPrescription,
   type Prescription,
 } from "@/lib/api";
@@ -160,8 +161,8 @@ function AdditionalInfoContent() {
         const data = await getPrescription(Number(prescriptionId));
         setPrescription(data);
       } catch (error) {
-        console.error(error);
-        alert("Failed to load prescription information.");
+        console.error("getPrescription failed:", error);
+        alert(getApiErrorMessage(error, "Failed to load prescription information."));
       } finally {
         setIsLoading(false);
       }
@@ -246,8 +247,8 @@ function AdditionalInfoContent() {
 
       router.push(`/medication/result?prescriptionId=${prescriptionId}`);
     } catch (error) {
-      console.error(error);
-      alert("Failed to save additional information.");
+      console.error("createAdditionalInfo failed:", error);
+      alert(getApiErrorMessage(error, "Failed to save additional information."));
     } finally {
       setIsSaving(false);
     }
