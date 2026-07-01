@@ -102,7 +102,7 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
       return typeof detail === "string" ? detail : JSON.stringify(detail);
     }
     if (error.message === "Network Error") {
-      return "Cannot reach the server. Check that the backend is running and restart the frontend dev server.";
+      return "We could not read the server response. Please try again or check your connection.";
     }
     return error.message || fallback;
   }
@@ -130,9 +130,6 @@ export async function scanPrescription(file: File): Promise<Prescription> {
   formData.append("file", file);
 
   const response = await api.post<Prescription>("/prescriptions/scan", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
     timeout: SCAN_TIMEOUT_MS,
   });
 
