@@ -1,60 +1,61 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { HubCard, helperClass } from "@/components/medication/ui";
 
-export default function InfoInputPage() {
+export default function MedicationHubPage() {
   const router = useRouter();
 
   return (
-    <main className="min-h-screen bg-[#F8FAF7] px-5 py-6">
-      <section className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Information Input</h1>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Extract patient, prescription, and medicine details from prescriptions,
-          then enter any additional information needed for benefit matching.
+    <div className="space-y-6">
+      <section>
+        <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600">
+          Medication
+        </p>
+        <h1 className="mt-1 text-2xl font-bold text-gray-900">
+          How can we help?
+        </h1>
+        <p className={`mt-2 ${helperClass}`}>
+          Scan your prescription to find medicine savings, or search for a
+          specific drug.
         </p>
       </section>
 
-      <section className="space-y-4">
-        <button
+      <section className="space-y-3" aria-label="Medication features">
+        <HubCard
+          step="Step 1"
+          icon="📋"
+          title="Scan Prescription"
+          description="Upload a photo. We read patient details and medicines for you — then you review and confirm."
           onClick={() => router.push("/medication/prescription-intake")}
-          className="w-full rounded-2xl bg-white p-5 text-left shadow-sm border border-gray-100"
-        >
-          <h2 className="text-lg font-semibold text-gray-900">
-            Prescription Scan / Data Entry
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Capture or manually enter patient details, hospital name, doctor name,
-            prescription date, and medicine information.
-          </p>
-        </button>
+          accent="emerald"
+        />
 
-        <button
+        <HubCard
+          step="Step 2"
+          icon="✅"
+          title="Additional Information"
+          description="Add PhilHealth status, income, and health details to match you with support programs."
           onClick={() => router.push("/medication/additional-info")}
-          className="w-full rounded-2xl bg-white p-5 text-left shadow-sm border border-gray-100"
-        >
-          <h2 className="text-lg font-semibold text-gray-900">
-            Additional Information
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Auto-fill name, age, and address from the prescription, then add
-            missing details such as PhilHealth, eligibility, and income level.
-          </p>
-        </button>
+          accent="emerald"
+        />
 
-        <button
+        <HubCard
+          icon="🔍"
+          title="Medicine Search"
+          description="Look up a medicine by name, ingredient, or dosage. Works on its own — no prescription needed."
           onClick={() => router.push("/medication/search")}
-          className="w-full rounded-2xl bg-white p-5 text-left shadow-sm border border-gray-100"
-        >
-          <h2 className="text-lg font-semibold text-gray-900">
-            Medicine Search
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Search by medicine name, ingredient, dosage, and form. The search API
-            will be connected separately.
-          </p>
-        </button>
+          accent="blue"
+        />
       </section>
-    </main>
+
+      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3.5">
+        <p className="text-sm font-medium text-emerald-900">New here?</p>
+        <p className="mt-0.5 text-sm leading-relaxed text-emerald-800">
+          Start with <strong>Scan Prescription</strong>, then complete{" "}
+          <strong>Additional Information</strong> to see your savings options.
+        </p>
+      </div>
+    </div>
   );
 }

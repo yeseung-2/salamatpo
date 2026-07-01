@@ -4,11 +4,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useRef, useState } from "react";
 import {
+  AiNoticeBanner,
+  Card,
+  FieldLabel,
+  PrimaryButton,
+  ScanningLoader,
+  SecondaryButton,
+  SectionHeader,
+  StepProgress,
+  TextArea,
+  TextInput,
+  helperClass,
+} from "@/components/medication/ui";
+import {
   confirmPrescription,
   scanPrescription,
   type Prescription,
   type PrescriptionForm,
 } from "@/lib/api";
+
+const INTAKE_STEPS = [
+  { label: "Upload" },
+  { label: "Review" },
+  { label: "Done" },
+];
 
 const emptyForm: PrescriptionForm = {
   patient_name: "",
@@ -34,13 +53,7 @@ function toForm(data: Prescription): PrescriptionForm {
   };
 }
 
-function fieldClassName() {
-  return "w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
-}
-
-function labelClassName() {
-  return "mb-1.5 block text-sm font-medium text-gray-700";
-}
+type ViewStage = "upload" | "scanning" | "review";
 
 export default function PrescriptionIntakePage() {
   const router = useRouter();
@@ -52,10 +65,11 @@ export default function PrescriptionIntakePage() {
   const [prescriptionStatus, setPrescriptionStatus] = useState<string | null>(
     null,
   );
-  const [isScanning, setIsScanning] = useState(false);
+  const [stage, setStage] = useState<ViewStage>("upload");
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const hasScanResult = prescriptionId !== null;
+  const isAlreadyConfirmed = prescriptionStatus === "confirmed";
+  const currentStep = stage === "review" ? 2 : 1;
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -70,6 +84,7 @@ export default function PrescriptionIntakePage() {
     setPrescriptionId(null);
     setForm(emptyForm);
     setPrescriptionStatus(null);
+    setStage("upload");
   };
 
   const handleScanPrescription = async () => {
@@ -79,18 +94,18 @@ export default function PrescriptionIntakePage() {
     }
 
     try {
-      setIsScanning(true);
+      setStage("scanning");
 
       const data = await scanPrescription(selectedFile);
 
       setPrescriptionId(data.id);
       setForm(toForm(data));
       setPrescriptionStatus(data.status);
+      setStage("review");
     } catch (error) {
       console.error(error);
       alert("An error occurred while scanning the prescription.");
-    } finally {
-      setIsScanning(false);
+      setStage("upload");
     }
   };
 
@@ -117,18 +132,7 @@ export default function PrescriptionIntakePage() {
       ...prev,
       medicines: prev.medicines.map((medicine) =>
         medicine.id === medicineId
-          ? { ...medicine, [field]: value, is_confirmed: false }
-          : medicine,
-      ),
-    }));
-  };
-
-  const confirmMedicine = (medicineId: number) => {
-    setForm((prev) => ({
-      ...prev,
-      medicines: prev.medicines.map((medicine) =>
-        medicine.id === medicineId
-          ? { ...medicine, is_confirmed: true }
+          ? { ...medicine, [field]: value }
           : medicine,
       ),
     }));
@@ -137,6 +141,16 @@ export default function PrescriptionIntakePage() {
   const handleConfirmPrescription = async () => {
     if (!prescriptionId) {
       alert("Please scan the prescription first.");
+      return;
+    }
+
+    if (!form.patient_name.trim()) {
+      alert("Please enter the patient name.");
+      return;
+    }
+
+    if (form.medicines.length === 0) {
+      alert("No medicines were detected. Please check your prescription image.");
       return;
     }
 
@@ -168,35 +182,46 @@ export default function PrescriptionIntakePage() {
     }
   };
 
-  const confirmedCount =
-    form.medicines.filter((medicine) => medicine.is_confirmed).length ?? 0;
-
-  const isAlreadyConfirmed = prescriptionStatus === "confirmed";
+  const emptyFieldCount = [
+    form.patient_name,
+    form.patient_address,
+    form.hospital_name,
+    form.doctor_name,
+    form.prescription_date,
+    ...form.medicines.flatMap((m) => [
+      m.medicine_name ?? "",
+      m.dosage ?? "",
+      m.form ?? "",
+      m.frequency ?? "",
+    ]),
+  ].filter((v) => !v.trim()).length;
 
   return (
-    <div className="space-y-6 pb-8">
-      <section>
+    <div className="space-y-5 pb-28">
+      <div>
         <Link
           href="/medication"
-          className="text-sm font-medium text-emerald-600"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
         >
-          ← Back to Information Input
+          ← Back to Medication
         </Link>
-        <p className="mt-3 text-sm text-gray-500">Step 1</p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">
-          Prescription Scan / Data Entry
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">
+          Prescription Scan
         </h1>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Automatically extract patient details, prescription details, and medicine
-          information from the prescription. Edit anything that needs correction.
+        <p className={`mt-2 ${helperClass}`}>
+          Upload your prescription photo. We will read it for you — then you
+          review and save.
         </p>
-      </section>
+      </div>
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-gray-900">Prescription Image</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Select a photo or scanned file.
-        </p>
+      <StepProgress steps={INTAKE_STEPS} current={currentStep} />
+
+      {/* ── Upload ── */}
+      <Card>
+        <SectionHeader
+          title="Prescription Image"
+          description="Take a clear photo or upload a scanned file."
+        />
 
         <input
           ref={fileInputRef}
@@ -206,344 +231,344 @@ export default function PrescriptionIntakePage() {
           onChange={handleImageSelect}
         />
 
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50 text-sm font-semibold text-emerald-700"
-        >
-          Upload Prescription Image
-        </button>
+        {!imagePreviewUrl ? (
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex min-h-[160px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-8 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+          >
+            <span className="text-4xl" aria-hidden>
+              📷
+            </span>
+            <span className="mt-3 text-base font-semibold text-emerald-800">
+              Tap to upload photo
+            </span>
+            <span className="mt-1 text-sm text-emerald-600">
+              JPG, PNG, or HEIC
+            </span>
+          </button>
+        ) : (
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreviewUrl}
+                alt="Uploaded prescription preview"
+                className="max-h-56 w-full object-contain"
+              />
+              {selectedFile && (
+                <p className="border-t border-gray-100 px-4 py-2.5 text-xs text-gray-500">
+                  {selectedFile.name}
+                </p>
+              )}
+            </div>
 
-        {imagePreviewUrl && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imagePreviewUrl}
-              alt="Uploaded prescription preview"
-              className="max-h-64 w-full object-contain"
-            />
-            {selectedFile && (
-              <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">
-                {selectedFile.name}
-              </p>
+            {stage !== "scanning" && stage !== "review" && (
+              <div className="flex gap-2">
+                <SecondaryButton onClick={() => fileInputRef.current?.click()}>
+                  Change Photo
+                </SecondaryButton>
+                <PrimaryButton
+                  onClick={handleScanPrescription}
+                  disabled={!selectedFile}
+                >
+                  Read Prescription
+                </PrimaryButton>
+              </div>
             )}
           </div>
         )}
+      </Card>
 
-        <button
-          type="button"
-          onClick={handleScanPrescription}
-          disabled={!selectedFile || isScanning}
-          className="mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          {isScanning ? "Scanning..." : "Run OCR"}
-        </button>
-      </section>
+      {/* ── Scanning ── */}
+      {stage === "scanning" && (
+        <Card>
+          <ScanningLoader />
+        </Card>
+      )}
 
-      {hasScanResult && (
+      {/* ── Review ── */}
+      {stage === "review" && prescriptionId !== null && (
         <>
-          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-base font-semibold text-gray-900">
-                Patient Information
-              </h2>
-              {prescriptionStatus && (
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                    isAlreadyConfirmed
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {isAlreadyConfirmed ? "Saved" : "Draft"}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-gray-500">
-              Basic patient details extracted from the prescription.
-            </p>
+          <AiNoticeBanner />
 
-            <div className="mt-4 space-y-4">
+          {emptyFieldCount > 0 && !isAlreadyConfirmed && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span className="font-semibold">
+                {emptyFieldCount} field{emptyFieldCount > 1 ? "s" : ""} need
+                your attention
+              </span>
+              {" — "}
+              highlighted fields could not be read clearly.
+            </div>
+          )}
+
+          <Card>
+            <SectionHeader
+              title="Patient Information"
+              description="Check name, age, and address."
+              badge={
+                prescriptionStatus ? (
+                  <span
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                      isAlreadyConfirmed
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {isAlreadyConfirmed ? "Saved" : "Draft"}
+                  </span>
+                ) : undefined
+              }
+            />
+
+            <div className="space-y-4">
               <div>
-                <label htmlFor="patientName" className={labelClassName()}>
-                  Name
-                </label>
-                <input
+                <FieldLabel htmlFor="patientName" showAutoBadge required>
+                  Full Name
+                </FieldLabel>
+                <TextInput
                   id="patientName"
-                  type="text"
                   value={form.patient_name}
-                  onChange={(e) =>
-                    updateFormField("patient_name", e.target.value)
-                  }
+                  onChange={(v) => updateFormField("patient_name", v)}
                   disabled={isAlreadyConfirmed}
-                  className={fieldClassName()}
+                  needsReview
+                  placeholder="Patient full name"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="patientAge" className={labelClassName()}>
+                  <FieldLabel htmlFor="patientAge" showAutoBadge>
                     Age
-                  </label>
-                  <input
+                  </FieldLabel>
+                  <TextInput
                     id="patientAge"
                     type="number"
                     min={0}
                     value={form.patient_age}
-                    onChange={(e) =>
-                      updateFormField("patient_age", e.target.value)
-                    }
+                    onChange={(v) => updateFormField("patient_age", v)}
                     disabled={isAlreadyConfirmed}
-                    className={fieldClassName()}
+                    placeholder="Age"
                   />
                 </div>
-
                 <div>
-                  <label htmlFor="patientBirthDate" className={labelClassName()}>
+                  <FieldLabel htmlFor="patientBirthDate" showAutoBadge>
                     Date of Birth
-                  </label>
-                  <input
+                  </FieldLabel>
+                  <TextInput
                     id="patientBirthDate"
                     type="date"
                     value={form.patient_birth_date}
-                    onChange={(e) =>
-                      updateFormField("patient_birth_date", e.target.value)
-                    }
+                    onChange={(v) => updateFormField("patient_birth_date", v)}
                     disabled={isAlreadyConfirmed}
-                    className={fieldClassName()}
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="patientAddress" className={labelClassName()}>
+                <FieldLabel htmlFor="patientAddress" showAutoBadge>
                   Address
-                </label>
-                <textarea
+                </FieldLabel>
+                <TextArea
                   id="patientAddress"
                   value={form.patient_address}
-                  onChange={(e) =>
-                    updateFormField("patient_address", e.target.value)
-                  }
-                  rows={3}
+                  onChange={(v) => updateFormField("patient_address", v)}
                   disabled={isAlreadyConfirmed}
-                  className={`${fieldClassName()} resize-none`}
+                  needsReview
+                  placeholder="Home address"
                 />
               </div>
             </div>
-          </section>
+          </Card>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-gray-900">Prescription Details</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Review and edit the hospital name, doctor name, and prescription date.
-            </p>
+          <Card>
+            <SectionHeader
+              title="Prescription Details"
+              description="Hospital, doctor, and date from your prescription."
+            />
 
-            <div className="mt-4 space-y-4">
+            <div className="space-y-4">
               <div>
-                <label htmlFor="hospitalName" className={labelClassName()}>
-                  Hospital Name
-                </label>
-                <input
+                <FieldLabel htmlFor="hospitalName" showAutoBadge>
+                  Hospital / Clinic
+                </FieldLabel>
+                <TextInput
                   id="hospitalName"
-                  type="text"
                   value={form.hospital_name}
-                  onChange={(e) =>
-                    updateFormField("hospital_name", e.target.value)
-                  }
+                  onChange={(v) => updateFormField("hospital_name", v)}
                   disabled={isAlreadyConfirmed}
-                  className={fieldClassName()}
+                  needsReview
+                  placeholder="Hospital or clinic name"
                 />
               </div>
 
               <div>
-                <label htmlFor="doctorName" className={labelClassName()}>
+                <FieldLabel htmlFor="doctorName" showAutoBadge>
                   Doctor Name
-                </label>
-                <input
+                </FieldLabel>
+                <TextInput
                   id="doctorName"
-                  type="text"
                   value={form.doctor_name}
-                  onChange={(e) =>
-                    updateFormField("doctor_name", e.target.value)
-                  }
+                  onChange={(v) => updateFormField("doctor_name", v)}
                   disabled={isAlreadyConfirmed}
-                  className={fieldClassName()}
+                  needsReview
+                  placeholder="Prescribing doctor"
                 />
               </div>
 
               <div>
-                <label htmlFor="prescriptionDate" className={labelClassName()}>
+                <FieldLabel htmlFor="prescriptionDate" showAutoBadge>
                   Prescription Date
-                </label>
-                <input
+                </FieldLabel>
+                <TextInput
                   id="prescriptionDate"
                   type="date"
                   value={form.prescription_date}
-                  onChange={(e) =>
-                    updateFormField("prescription_date", e.target.value)
-                  }
+                  onChange={(v) => updateFormField("prescription_date", v)}
                   disabled={isAlreadyConfirmed}
-                  className={fieldClassName()}
+                  needsReview
                 />
               </div>
             </div>
-          </section>
+          </Card>
 
-          <section className="space-y-4">
-            <div className="flex items-end justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">
-                  Medicine Information
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  Review each medicine and tap confirm when ready.
+          <div className="space-y-3">
+            <SectionHeader
+              title="Medicines"
+              description={`${form.medicines.length} medicine${form.medicines.length !== 1 ? "s" : ""} detected. Edit anything that looks wrong.`}
+            />
+
+            {form.medicines.length === 0 ? (
+              <Card>
+                <p className="text-sm text-gray-600">
+                  No medicines were detected. Try uploading a clearer photo.
                 </p>
-              </div>
-              <p className="text-sm text-gray-500">
-                {confirmedCount}/{form.medicines.length} confirmed
-              </p>
-            </div>
+              </Card>
+            ) : (
+              form.medicines.map((medicine, index) => {
+                const lowConfidence =
+                  medicine.confidence_score != null &&
+                  medicine.confidence_score < 0.7;
 
-            {form.medicines.map((medicine, index) => (
-              <article
-                key={medicine.id}
-                className={`rounded-2xl border p-5 shadow-sm ${
-                  medicine.is_confirmed
-                    ? "border-emerald-200 bg-emerald-50/40"
-                    : "border-gray-100 bg-white"
-                }`}
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Medicine {index + 1}
-                  </h3>
-                  {medicine.is_confirmed && (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                      Confirmed
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor={`medicine-name-${medicine.id}`}
-                      className={labelClassName()}
-                    >
-                      Medicine Name
-                    </label>
-                    <input
-                      id={`medicine-name-${medicine.id}`}
-                      type="text"
-                      value={medicine.medicine_name ?? ""}
-                      onChange={(e) =>
-                        updateMedicine(
-                          medicine.id,
-                          "medicine_name",
-                          e.target.value,
-                        )
-                      }
-                      disabled={isAlreadyConfirmed}
-                      className={fieldClassName()}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label
-                        htmlFor={`medicine-dosage-${medicine.id}`}
-                        className={labelClassName()}
-                      >
-                        Dosage
-                      </label>
-                      <input
-                        id={`medicine-dosage-${medicine.id}`}
-                        type="text"
-                        value={medicine.dosage ?? ""}
-                        onChange={(e) =>
-                          updateMedicine(medicine.id, "dosage", e.target.value)
-                        }
-                        disabled={isAlreadyConfirmed}
-                        className={fieldClassName()}
-                      />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor={`medicine-form-${medicine.id}`}
-                        className={labelClassName()}
-                      >
-                        Form
-                      </label>
-                      <input
-                        id={`medicine-form-${medicine.id}`}
-                        type="text"
-                        value={medicine.form ?? ""}
-                        onChange={(e) =>
-                          updateMedicine(medicine.id, "form", e.target.value)
-                        }
-                        disabled={isAlreadyConfirmed}
-                        className={fieldClassName()}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor={`medicine-frequency-${medicine.id}`}
-                      className={labelClassName()}
-                    >
-                      Directions
-                    </label>
-                    <textarea
-                      id={`medicine-frequency-${medicine.id}`}
-                      value={medicine.frequency ?? ""}
-                      onChange={(e) =>
-                        updateMedicine(
-                          medicine.id,
-                          "frequency",
-                          e.target.value,
-                        )
-                      }
-                      rows={3}
-                      disabled={isAlreadyConfirmed}
-                      className={`${fieldClassName()} resize-none`}
-                    />
-                  </div>
-                </div>
-
-                {!isAlreadyConfirmed && (
-                  <button
-                    type="button"
-                    onClick={() => confirmMedicine(medicine.id)}
-                    disabled={
-                      medicine.is_confirmed ||
-                      !medicine.medicine_name?.trim() ||
-                      !medicine.dosage?.trim() ||
-                      !medicine.form?.trim() ||
-                      !medicine.frequency?.trim()
+                return (
+                  <Card
+                    key={medicine.id}
+                    className={
+                      lowConfidence
+                        ? "border-amber-200 bg-amber-50/30"
+                        : undefined
                     }
-                    className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-emerald-600 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
                   >
-                    {medicine.is_confirmed ? "Confirmed" : "Confirm This Medicine"}
-                  </button>
-                )}
-              </article>
-            ))}
-          </section>
+                    <div className="mb-4 flex items-center justify-between gap-2">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Medicine {index + 1}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {lowConfidence && (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                            Low confidence
+                          </span>
+                        )}
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                          Auto-detected
+                        </span>
+                      </div>
+                    </div>
 
-          {!isAlreadyConfirmed && (
-            <button
-              type="button"
-              onClick={handleConfirmPrescription}
-              disabled={isConfirming || form.medicines.length === 0}
-              className="flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-600 text-base font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300"
-            >
-              {isConfirming ? "Saving..." : "Confirm and Save"}
-            </button>
-          )}
+                    <div className="space-y-4">
+                      <div>
+                        <FieldLabel
+                          htmlFor={`medicine-name-${medicine.id}`}
+                          required
+                        >
+                          Medicine Name
+                        </FieldLabel>
+                        <TextInput
+                          id={`medicine-name-${medicine.id}`}
+                          value={medicine.medicine_name ?? ""}
+                          onChange={(v) =>
+                            updateMedicine(medicine.id, "medicine_name", v)
+                          }
+                          disabled={isAlreadyConfirmed}
+                          needsReview
+                          placeholder="Brand or generic name"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <FieldLabel htmlFor={`medicine-dosage-${medicine.id}`}>
+                            Dosage
+                          </FieldLabel>
+                          <TextInput
+                            id={`medicine-dosage-${medicine.id}`}
+                            value={medicine.dosage ?? ""}
+                            onChange={(v) =>
+                              updateMedicine(medicine.id, "dosage", v)
+                            }
+                            disabled={isAlreadyConfirmed}
+                            needsReview
+                            placeholder="e.g. 500mg"
+                          />
+                        </div>
+                        <div>
+                          <FieldLabel htmlFor={`medicine-form-${medicine.id}`}>
+                            Form
+                          </FieldLabel>
+                          <TextInput
+                            id={`medicine-form-${medicine.id}`}
+                            value={medicine.form ?? ""}
+                            onChange={(v) =>
+                              updateMedicine(medicine.id, "form", v)
+                            }
+                            disabled={isAlreadyConfirmed}
+                            needsReview
+                            placeholder="Tablet, syrup…"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <FieldLabel
+                          htmlFor={`medicine-frequency-${medicine.id}`}
+                        >
+                          How to Take
+                        </FieldLabel>
+                        <TextArea
+                          id={`medicine-frequency-${medicine.id}`}
+                          value={medicine.frequency ?? ""}
+                          onChange={(v) =>
+                            updateMedicine(medicine.id, "frequency", v)
+                          }
+                          disabled={isAlreadyConfirmed}
+                          needsReview
+                          placeholder="e.g. 1 tablet twice daily after meals"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
+          </div>
         </>
+      )}
+
+      {/* ── Sticky save bar ── */}
+      {stage === "review" && !isAlreadyConfirmed && (
+        <div className="fixed bottom-[72px] left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-sm">
+          <PrimaryButton
+            onClick={handleConfirmPrescription}
+            disabled={isConfirming || form.medicines.length === 0}
+          >
+            {isConfirming ? "Saving…" : "Save & Continue"}
+          </PrimaryButton>
+          <p className="mt-2 text-center text-xs text-gray-500">
+            You can edit these details again later if needed.
+          </p>
+        </div>
       )}
     </div>
   );

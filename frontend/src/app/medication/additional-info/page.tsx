@@ -1,12 +1,32 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Card,
+  ChipSelect,
+  FieldLabel,
+  PrimaryButton,
+  SectionHeader,
+  StepProgress,
+  TextInput,
+  YesNoToggle,
+  helperClass,
+  inputClass,
+  labelClass,
+} from "@/components/medication/ui";
 import {
   createAdditionalInfo,
   getPrescription,
   type Prescription,
 } from "@/lib/api";
+
+const ADDITIONAL_STEPS = [
+  { label: "Upload" },
+  { label: "Review" },
+  { label: "Details" },
+];
 
 const monthlyIncomeOptions = [
   "Below ₱10,000",
@@ -33,9 +53,9 @@ const chronicConditionOptions = [
 
 type AdditionalInfoForm = {
   barangay: string;
-  hasPhilhealth: boolean;
-  isSeniorCitizen: boolean;
-  isPwd: boolean;
+  hasPhilhealth: boolean | null;
+  isSeniorCitizen: boolean | null;
+  isPwd: boolean | null;
   monthlyIncomeRange: string;
   chronicConditions: string[];
   otherCondition: string;
@@ -43,13 +63,83 @@ type AdditionalInfoForm = {
 
 const initialForm: AdditionalInfoForm = {
   barangay: "",
-  hasPhilhealth: false,
-  isSeniorCitizen: false,
-  isPwd: false,
+  hasPhilhealth: null,
+  isSeniorCitizen: null,
+  isPwd: null,
   monthlyIncomeRange: "",
   chronicConditions: [],
   otherCondition: "",
 };
+
+function PrescriptionSummary({ prescription }: { prescription: Prescription }) {
+  return (
+    <Card className="border-emerald-100 bg-emerald-50/30">
+      <SectionHeader
+        title="From Your Prescription"
+        description="Already saved — no need to re-enter."
+      />
+
+      <dl className="space-y-3 text-sm">
+        <div className="flex justify-between gap-4 border-b border-emerald-100/80 pb-3">
+          <dt className="text-gray-500">Patient</dt>
+          <dd className="text-right font-medium text-gray-900">
+            {prescription.patient_name || "—"}
+            {prescription.patient_age != null && (
+              <span className="text-gray-500">
+                {" "}
+                · {prescription.patient_age} yrs
+              </span>
+            )}
+          </dd>
+        </div>
+
+        {prescription.patient_address && (
+          <div className="flex justify-between gap-4 border-b border-emerald-100/80 pb-3">
+            <dt className="shrink-0 text-gray-500">Address</dt>
+            <dd className="text-right font-medium text-gray-900">
+              {prescription.patient_address}
+            </dd>
+          </div>
+        )}
+
+        <div className="flex justify-between gap-4 border-b border-emerald-100/80 pb-3">
+          <dt className="text-gray-500">Hospital</dt>
+          <dd className="text-right font-medium text-gray-900">
+            {prescription.hospital_name || "—"}
+          </dd>
+        </div>
+
+        <div className="flex justify-between gap-4 border-b border-emerald-100/80 pb-3">
+          <dt className="text-gray-500">Prescription Date</dt>
+          <dd className="text-right font-medium text-gray-900">
+            {prescription.prescription_date || "—"}
+          </dd>
+        </div>
+
+        <div>
+          <dt className="text-gray-500">Medicines</dt>
+          <dd className="mt-2 space-y-2">
+            {prescription.medicines.map((medicine) => (
+              <div
+                key={medicine.id}
+                className="rounded-xl bg-white px-3.5 py-2.5 ring-1 ring-emerald-100"
+              >
+                <p className="font-medium text-gray-900">
+                  {medicine.medicine_name || "Unnamed medicine"}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {[medicine.dosage, medicine.form, medicine.frequency]
+                    .filter(Boolean)
+                    .join(" · ") || "No details"}
+                </p>
+              </div>
+            ))}
+          </dd>
+        </div>
+      </dl>
+    </Card>
+  );
+}
 
 function AdditionalInfoContent() {
   const router = useRouter();
@@ -83,7 +173,6 @@ function AdditionalInfoContent() {
   const handleConditionToggle = (condition: string) => {
     setForm((prev) => {
       const alreadySelected = prev.chronicConditions.includes(condition);
-
       return {
         ...prev,
         chronicConditions: alreadySelected
@@ -101,6 +190,21 @@ function AdditionalInfoContent() {
 
     if (!form.barangay.trim()) {
       alert("Please enter your barangay.");
+      return;
+    }
+
+    if (form.hasPhilhealth === null) {
+      alert("Please select your PhilHealth status.");
+      return;
+    }
+
+    if (form.isSeniorCitizen === null) {
+      alert("Please select your senior citizen status.");
+      return;
+    }
+
+    if (form.isPwd === null) {
+      alert("Please select your PWD status.");
       return;
     }
 
@@ -151,201 +255,118 @@ function AdditionalInfoContent() {
 
   if (!prescriptionId) {
     return (
-      <main className="min-h-screen bg-[#F8FAF7] px-5 py-6">
+      <div className="space-y-4">
         <h1 className="text-2xl font-bold text-gray-900">
           Additional Information
         </h1>
-        <p className="mt-3 text-sm text-red-600">
-          Prescription ID is missing. Please scan and confirm your prescription
-          first.
-        </p>
-      </main>
+        <Card className="border-red-100 bg-red-50">
+          <p className="text-sm font-medium text-red-800">
+            No prescription found
+          </p>
+          <p className="mt-1 text-sm text-red-700">
+            Please scan and confirm your prescription first.
+          </p>
+          <Link
+            href="/medication/prescription-intake"
+            className="mt-3 inline-block text-sm font-semibold text-emerald-600"
+          >
+            Go to Prescription Scan →
+          </Link>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#F8FAF7] px-5 py-6">
-      <section className="mb-6">
-        <p className="text-sm text-gray-500">Step 2</p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">
+    <div className="space-y-5 pb-8">
+      <div>
+        <Link
+          href="/medication"
+          className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+        >
+          ← Back to Medication
+        </Link>
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">
           Additional Information
         </h1>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Please provide a few additional details to help us match you with
-          available medicine support options.
+        <p className={`mt-2 ${helperClass}`}>
+          A few more details help us find free or discounted medicine programs
+          near you.
         </p>
-      </section>
+      </div>
+
+      <StepProgress steps={ADDITIONAL_STEPS} current={3} />
 
       {isLoading ? (
-        <p className="text-sm text-gray-600">Loading prescription...</p>
-      ) : prescription ? (
-        <section className="mb-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Auto-filled from Prescription
-          </h2>
-
-          <div className="mt-4 space-y-3 text-sm">
-            <div>
-              <p className="text-gray-500">Patient Name</p>
-              <p className="font-medium text-gray-900">
-                {prescription.patient_name || "-"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Age</p>
-              <p className="font-medium text-gray-900">
-                {prescription.patient_age ?? "-"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Address</p>
-              <p className="font-medium text-gray-900">
-                {prescription.patient_address || "-"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Prescription Date</p>
-              <p className="font-medium text-gray-900">
-                {prescription.prescription_date || "-"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-500">Medicines</p>
-              <div className="mt-2 space-y-2">
-                {prescription.medicines.map((medicine) => (
-                  <div
-                    key={medicine.id}
-                    className="rounded-xl bg-gray-50 px-3 py-2"
-                  >
-                    <p className="font-medium text-gray-900">
-                      {medicine.medicine_name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {medicine.dosage} · {medicine.form} · {medicine.frequency}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <Card>
+          <div className="flex items-center gap-3 py-4">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+            <p className="text-sm text-gray-600">Loading your prescription…</p>
           </div>
-        </section>
+        </Card>
+      ) : prescription ? (
+        <PrescriptionSummary prescription={prescription} />
       ) : null}
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Eligibility Details
-        </h2>
+      <Card>
+        <SectionHeader
+          title="Eligibility Details"
+          description="Only what we need to match support programs."
+        />
 
-        <div className="mt-5 space-y-5">
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">Barangay</span>
-            <input
+        <div className="space-y-6">
+          <div>
+            <FieldLabel htmlFor="barangay" required>
+              Barangay
+            </FieldLabel>
+            <TextInput
+              id="barangay"
               value={form.barangay}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  barangay: event.target.value,
-                }))
-              }
-              placeholder="Enter your barangay"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              onChange={(v) => setForm((prev) => ({ ...prev, barangay: v }))}
+              placeholder="Your barangay"
             />
-          </label>
-
-          <div>
-            <p className="text-sm font-medium text-gray-700">PhilHealth Member</p>
-            <div className="mt-2 flex gap-2">
-              {[true, false].map((value) => (
-                <button
-                  key={String(value)}
-                  type="button"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      hasPhilhealth: value,
-                    }))
-                  }
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    form.hasPhilhealth === value
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-gray-200 bg-white text-gray-700"
-                  }`}
-                >
-                  {value ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
           </div>
 
-          <div>
-            <p className="text-sm font-medium text-gray-700">Senior Citizen</p>
-            <div className="mt-2 flex gap-2">
-              {[true, false].map((value) => (
-                <button
-                  key={String(value)}
-                  type="button"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isSeniorCitizen: value,
-                    }))
-                  }
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    form.isSeniorCitizen === value
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-gray-200 bg-white text-gray-700"
-                  }`}
-                >
-                  {value ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
-          </div>
+          <YesNoToggle
+            label="PhilHealth Member"
+            value={form.hasPhilhealth}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, hasPhilhealth: v }))
+            }
+            required
+          />
+
+          <YesNoToggle
+            label="Senior Citizen"
+            value={form.isSeniorCitizen}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, isSeniorCitizen: v }))
+            }
+            required
+          />
+
+          <YesNoToggle
+            label="Person with Disability (PWD)"
+            value={form.isPwd}
+            onChange={(v) => setForm((prev) => ({ ...prev, isPwd: v }))}
+            required
+          />
 
           <div>
-            <p className="text-sm font-medium text-gray-700">
-              Person with Disability (PWD)
-            </p>
-            <div className="mt-2 flex gap-2">
-              {[true, false].map((value) => (
-                <button
-                  key={String(value)}
-                  type="button"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      isPwd: value,
-                    }))
-                  }
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    form.isPwd === value
-                      ? "border-emerald-600 bg-emerald-600 text-white"
-                      : "border-gray-200 bg-white text-gray-700"
-                  }`}
-                >
-                  {value ? "Yes" : "No"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label className="block">
-            <span className="text-sm font-medium text-gray-700">
+            <label htmlFor="incomeRange" className={labelClass}>
               Monthly Income Range
-            </span>
+              <span className="ml-1 text-red-500">*</span>
+            </label>
             <select
+              id="incomeRange"
               value={form.monthlyIncomeRange}
-              onChange={(event) =>
+              onChange={(e) =>
                 setForm((prev) => ({
                   ...prev,
-                  monthlyIncomeRange: event.target.value,
+                  monthlyIncomeRange: e.target.value,
                 }))
               }
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              className={inputClass}
             >
               <option value="">Select income range</option>
               {monthlyIncomeOptions.map((option) => (
@@ -354,66 +375,39 @@ function AdditionalInfoContent() {
                 </option>
               ))}
             </select>
-          </label>
-
-          <div>
-            <p className="text-sm font-medium text-gray-700">
-              Chronic Conditions
-            </p>
-            <p className="mt-1 text-xs text-gray-500">Select all that apply.</p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {chronicConditionOptions.map((condition) => {
-                const selected = form.chronicConditions.includes(condition);
-
-                return (
-                  <button
-                    key={condition}
-                    type="button"
-                    onClick={() => handleConditionToggle(condition)}
-                    className={`rounded-full border px-4 py-2 text-sm ${
-                      selected
-                        ? "border-emerald-600 bg-emerald-600 text-white"
-                        : "border-gray-200 bg-white text-gray-700"
-                    }`}
-                  >
-                    {condition}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
+          <ChipSelect
+            label="Chronic Conditions"
+            description="Select all that apply."
+            options={chronicConditionOptions}
+            selected={form.chronicConditions}
+            onToggle={handleConditionToggle}
+            required
+          />
+
           {form.chronicConditions.includes("Other") && (
-            <label className="block">
-              <span className="text-sm font-medium text-gray-700">
-                Please specify your condition
-              </span>
-              <input
+            <div>
+              <FieldLabel htmlFor="otherCondition" required>
+                Please specify
+              </FieldLabel>
+              <TextInput
+                id="otherCondition"
                 value={form.otherCondition}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    otherCondition: event.target.value,
-                  }))
+                onChange={(v) =>
+                  setForm((prev) => ({ ...prev, otherCondition: v }))
                 }
-                placeholder="Enter condition"
-                className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                placeholder="Your condition"
               />
-            </label>
+            </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSaving}
-            className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {isSaving ? "Saving..." : "Save and Continue"}
-          </button>
+          <PrimaryButton onClick={handleSubmit} disabled={isSaving}>
+            {isSaving ? "Saving…" : "Save & Continue"}
+          </PrimaryButton>
         </div>
-      </section>
-    </main>
+      </Card>
+    </div>
   );
 }
 
@@ -421,9 +415,9 @@ export default function AdditionalInfoPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#F8FAF7] px-5 py-6">
-          <p className="text-sm text-gray-600">Loading...</p>
-        </main>
+        <div className="py-6">
+          <p className="text-sm text-gray-600">Loading…</p>
+        </div>
       }
     >
       <AdditionalInfoContent />
